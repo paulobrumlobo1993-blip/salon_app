@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:uuid/uuid.dart';
 import '../models/client.dart';
-import '../services/storage_service.dart';
+import '../services/firestore_service.dart';
 import '../theme.dart';
 
 class ClientsScreen extends StatefulWidget {
@@ -13,25 +13,24 @@ class ClientsScreen extends StatefulWidget {
 }
 
 class _ClientsScreenState extends State<ClientsScreen> {
-  List<Client> _clients = [];
   final _searchCtrl = TextEditingController();
   String _search = '';
 
+  List<Client> _filterClients(List<Client> clients) {
+    return clients
+        .where(
+          (c) =>
+              c.name.toLowerCase().contains(_search.toLowerCase()) ||
+              c.phone.contains(_search),
+        )
+        .toList();
+  }
+
   @override
-  void initState() {
-    super.initState();
-    _loadClients();
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
-
-  void _loadClients() {
-    setState(() => _clients = StorageService.getAllClients());
-  }
-
-  List<Client> get _filtered => _clients
-      .where((c) =>
-          c.name.toLowerCase().contains(_search.toLowerCase()) ||
-          c.phone.contains(_search))
-      .toList();
 
   @override
   Widget build(BuildContext context) {
@@ -40,13 +39,38 @@ class _ClientsScreenState extends State<ClientsScreen> {
         children: [
           _buildSearchBar(),
           Expanded(
-            child: _filtered.isEmpty
-                ? _buildEmpty()
-                : ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _filtered.length,
-                    itemBuilder: (_, i) => _buildClientCard(_filtered[i]),
-                  ),
+            child: StreamBuilder<List<Client>>(
+              stream: FirestoreService.clientsStream(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(),
+                  );
+                }
+
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Text(
+                      'Erro ao carregar clientes.',
+                      style: GoogleFonts.lato(color: AppTheme.error),
+                    ),
+                  );
+                }
+
+                final clients = snapshot.data ?? [];
+                final filtered = _filterClients(clients);
+
+                if (filtered.isEmpty) {
+                  return _buildEmpty();
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, i) => _buildClientCard(filtered[i]),
+                );
+              },
+            ),
           ),
         ],
       ),
@@ -96,12 +120,18 @@ class _ClientsScreenState extends State<ClientsScreen> {
         children: [
           Icon(Icons.people_outline, size: 72, color: AppTheme.roseLight),
           const SizedBox(height: 16),
-          Text('Nenhuma cliente cadastrada',
-              style: GoogleFonts.playfairDisplay(
-                  color: AppTheme.textLight, fontSize: 18)),
+          Text(
+            'Nenhuma cliente cadastrada',
+            style: GoogleFonts.playfairDisplay(
+              color: AppTheme.textLight,
+              fontSize: 18,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text('Toque no botão abaixo para adicionar',
-              style: GoogleFonts.lato(color: AppTheme.textLight)),
+          Text(
+            'Toque no botão abaixo para adicionar',
+            style: GoogleFonts.lato(color: AppTheme.textLight),
+          ),
         ],
       ),
     );
@@ -118,30 +148,39 @@ class _ClientsScreenState extends State<ClientsScreen> {
           child: Text(
             client.name[0].toUpperCase(),
             style: GoogleFonts.playfairDisplay(
-                color: AppTheme.rosePrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.bold),
+              color: AppTheme.rosePrimary,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
-        title: Text(client.name,
-            style: GoogleFonts.playfairDisplay(
-                fontWeight: FontWeight.w600, color: AppTheme.textDark)),
+        title: Text(
+          client.name,
+          style: GoogleFonts.playfairDisplay(
+            fontWeight: FontWeight.w600,
+            color: AppTheme.textDark,
+          ),
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: 4),
-            Row(children: [
-              const Icon(Icons.phone, size: 14, color: AppTheme.textLight),
-              const SizedBox(width: 4),
-              Text(client.phone, style: GoogleFonts.lato(fontSize: 13)),
-            ]),
+            Row(
+              children: [
+                const Icon(Icons.phone, size: 14, color: AppTheme.textLight),
+                const SizedBox(width: 4),
+                Text(client.phone, style: GoogleFonts.lato(fontSize: 13)),
+              ],
+            ),
             if (client.email != null) ...[
               const SizedBox(height: 2),
-              Row(children: [
-                const Icon(Icons.email, size: 14, color: AppTheme.textLight),
-                const SizedBox(width: 4),
-                Text(client.email!, style: GoogleFonts.lato(fontSize: 13)),
-              ]),
+              Row(
+                children: [
+                  const Icon(Icons.email, size: 14, color: AppTheme.textLight),
+                  const SizedBox(width: 4),
+                  Text(client.email!, style: GoogleFonts.lato(fontSize: 13)),
+                ],
+              ),
             ],
           ],
         ),
@@ -152,20 +191,28 @@ class _ClientsScreenState extends State<ClientsScreen> {
           },
           itemBuilder: (_) => [
             PopupMenuItem(
-                value: 'edit',
-                child: Row(children: [
+              value: 'edit',
+              child: Row(
+                children: [
                   const Icon(Icons.edit, color: AppTheme.rosePrimary),
                   const SizedBox(width: 8),
                   Text('Editar', style: GoogleFonts.lato()),
-                ])),
+                ],
+              ),
+            ),
             PopupMenuItem(
-                value: 'delete',
-                child: Row(children: [
+              value: 'delete',
+              child: Row(
+                children: [
                   const Icon(Icons.delete, color: AppTheme.error),
                   const SizedBox(width: 8),
-                  Text('Excluir',
-                      style: GoogleFonts.lato(color: AppTheme.error)),
-                ])),
+                  Text(
+                    'Excluir',
+                    style: GoogleFonts.lato(color: AppTheme.error),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -177,10 +224,7 @@ class _ClientsScreenState extends State<ClientsScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _ClientForm(
-        client: client,
-        onSaved: _loadClients,
-      ),
+      builder: (_) => _ClientForm(client: client),
     );
   }
 
@@ -189,20 +233,23 @@ class _ClientsScreenState extends State<ClientsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Excluir cliente?',
-            style: GoogleFonts.playfairDisplay()),
-        content: Text('Esta ação não pode ser desfeita.',
-            style: GoogleFonts.lato()),
+        title: Text(
+          'Excluir cliente?',
+          style: GoogleFonts.playfairDisplay(),
+        ),
+        content: Text(
+          'Esta ação não pode ser desfeita.',
+          style: GoogleFonts.lato(),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancelar', style: GoogleFonts.lato())),
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar', style: GoogleFonts.lato()),
+          ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
             onPressed: () async {
-              await StorageService.deleteClient(client.id);
-              _loadClients();
+              await FirestoreService.deleteClient(client.id);
               if (mounted) Navigator.pop(context);
             },
             child: Text('Excluir', style: GoogleFonts.lato()),
@@ -215,9 +262,8 @@ class _ClientsScreenState extends State<ClientsScreen> {
 
 class _ClientForm extends StatefulWidget {
   final Client? client;
-  final VoidCallback onSaved;
 
-  const _ClientForm({this.client, required this.onSaved});
+  const _ClientForm({this.client});
 
   @override
   State<_ClientForm> createState() => _ClientFormState();
@@ -229,6 +275,16 @@ class _ClientFormState extends State<_ClientForm> {
   late final _phoneCtrl = TextEditingController(text: widget.client?.phone);
   late final _emailCtrl = TextEditingController(text: widget.client?.email);
   late final _notesCtrl = TextEditingController(text: widget.client?.notes);
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
+    _notesCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -263,28 +319,50 @@ class _ClientFormState extends State<_ClientForm> {
               Text(
                 widget.client == null ? 'Nova Cliente' : 'Editar Cliente',
                 style: GoogleFonts.playfairDisplay(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textDark),
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textDark,
+                ),
               ),
               const SizedBox(height: 20),
-              _field(_nameCtrl, 'Nome completo', Icons.person,
-                  required: true),
+              _field(
+                _nameCtrl,
+                'Nome completo',
+                Icons.person,
+                required: true,
+              ),
               const SizedBox(height: 12),
-              _field(_phoneCtrl, 'Telefone', Icons.phone, required: true,
-                  keyboard: TextInputType.phone),
+              _field(
+                _phoneCtrl,
+                'Telefone',
+                Icons.phone,
+                required: true,
+                keyboard: TextInputType.phone,
+              ),
               const SizedBox(height: 12),
-              _field(_emailCtrl, 'E-mail (opcional)', Icons.email,
-                  keyboard: TextInputType.emailAddress),
+              _field(
+                _emailCtrl,
+                'E-mail (opcional)',
+                Icons.email,
+                keyboard: TextInputType.emailAddress,
+              ),
               const SizedBox(height: 12),
-              _field(_notesCtrl, 'Observações (opcional)', Icons.notes,
-                  maxLines: 3),
+              _field(
+                _notesCtrl,
+                'Observações (opcional)',
+                Icons.notes,
+                maxLines: 3,
+              ),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _save,
-                  child: Text(widget.client == null ? 'Cadastrar' : 'Salvar'),
+                  onPressed: _saving ? null : _save,
+                  child: Text(
+                    _saving
+                        ? 'Salvando...'
+                        : (widget.client == null ? 'Cadastrar' : 'Salvar'),
+                  ),
                 ),
               ),
             ],
@@ -318,16 +396,29 @@ class _ClientFormState extends State<_ClientForm> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    final client = Client(
-      id: widget.client?.id ?? const Uuid().v4(),
-      name: _nameCtrl.text.trim(),
-      phone: _phoneCtrl.text.trim(),
-      email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
-      notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
-      createdAt: widget.client?.createdAt ?? DateTime.now(),
-    );
-    await StorageService.saveClient(client);
-    widget.onSaved();
-    if (mounted) Navigator.pop(context);
+
+    setState(() => _saving = true);
+
+    try {
+      final client = Client(
+        id: widget.client?.id ?? const Uuid().v4(),
+        name: _nameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
+        notes: _notesCtrl.text.trim().isEmpty ? null : _notesCtrl.text.trim(),
+        createdAt: widget.client?.createdAt ?? DateTime.now(),
+      );
+
+      await FirestoreService.saveClient(client);
+
+      if (mounted) Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro ao salvar cliente.')),
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 }

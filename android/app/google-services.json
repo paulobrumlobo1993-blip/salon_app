@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "30593627973",
+    "project_id": "salon-agenda-paulo",
+    "storage_bucket": "salon-agenda-paulo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:30593627973:android:1f448c41ab08c08397b02c",
+        "android_client_info": {
+          "package_name": "com.example.salon_agenda"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBnbM7qMPW9Qt3-5LepgwyEdseQIqzWUa8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

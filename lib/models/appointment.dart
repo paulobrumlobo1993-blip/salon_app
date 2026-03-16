@@ -1,31 +1,11 @@
-import 'package:hive/hive.dart';
-
-part 'appointment.g.dart';
-
-@HiveType(typeId: 1)
-class Appointment extends HiveObject {
-  @HiveField(0)
+class Appointment {
   String id;
-
-  @HiveField(1)
   String clientId;
-
-  @HiveField(2)
   String clientName;
-
-  @HiveField(3)
   DateTime dateTime;
-
-  @HiveField(4)
   String description;
-
-  @HiveField(5)
   double value;
-
-  @HiveField(6)
   String status;
-
-  @HiveField(7)
   DateTime createdAt;
 
   Appointment({

@@ -1,14 +1,21 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'services/storage_service.dart';
+import 'firebase_options.dart';
 import 'screens/agenda_screen.dart';
 import 'screens/clients_screen.dart';
 import 'screens/reports_screen.dart';
+import 'screens/login_screen.dart';
 import 'theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await StorageService.init();
+
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
   runApp(const SalonApp());
 }
 
@@ -29,7 +36,22 @@ class SalonApp extends StatelessWidget {
       supportedLocales: const [
         Locale('pt', 'BR'),
       ],
-      home: const HomePage(),
+      home: StreamBuilder<User?>(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
+          if (snapshot.hasData) {
+            return const HomePage();
+          }
+
+          return const LoginScreen();
+        },
+      ),
     );
   }
 }
@@ -65,6 +87,13 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.logout),
+            tooltip: 'Sair',
+            onPressed: () async {
+              await FirebaseAuth.instance.signOut();
+            },
+          ),
           if (_currentIndex == 0)
             IconButton(
               icon: const Icon(Icons.today),
